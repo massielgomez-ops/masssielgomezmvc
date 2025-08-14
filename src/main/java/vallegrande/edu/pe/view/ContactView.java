@@ -5,82 +5,113 @@ import vallegrande.edu.pe.model.Contact;
 
 import javax.swing.*;
 import javax.swing.border.EmptyBorder;
-import javax.swing.table.DefaultTableModel;
+import javax.swing.table.*;
 import java.awt.*;
-import java.awt.event.MouseAdapter;
-import java.awt.event.MouseEvent;
+import java.awt.event.*;
 import java.util.List;
 
-/**
- * Vista principal con Swing que muestra la lista de contactos y botones.
- * Ventana maximizada, botones con estilo moderno y colores.
- */
 public class ContactView extends JFrame {
     private final ContactController controller;
     private DefaultTableModel tableModel;
     private JTable table;
+    private TableRowSorter<DefaultTableModel> sorter;
 
     public ContactView(ContactController controller) {
         super("Agenda MVC Swing - Vallegrande");
         this.controller = controller;
         initUI();
+        showWelcomeMessage();
         loadContacts();
     }
 
     private void initUI() {
         setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
-
-        // Inicia maximizado a pantalla completa
         setExtendedState(JFrame.MAXIMIZED_BOTH);
 
-        // Fuente base para toda la ventana
         Font baseFont = new Font("Segoe UI", Font.PLAIN, 16);
 
-        // Configuramos layout principal con espacio y márgenes
         JPanel contentPanel = new JPanel(new BorderLayout(10, 10));
         contentPanel.setBorder(new EmptyBorder(15, 15, 15, 15));
+        contentPanel.setBackground(Color.WHITE);
         setContentPane(contentPanel);
 
-        // Tabla con modelo y estilo
+        // Tabla
         tableModel = new DefaultTableModel(new String[]{"ID", "Nombre", "Email", "Teléfono"}, 0) {
             @Override public boolean isCellEditable(int row, int column) { return false; }
         };
         table = new JTable(tableModel);
         table.setFont(baseFont);
         table.setRowHeight(30);
-        table.getTableHeader().setFont(baseFont.deriveFont(Font.BOLD, 18f));
         table.setForeground(new Color(33, 33, 33));
         table.setBackground(Color.WHITE);
+
+        // Encabezado con color
+        JTableHeader header = table.getTableHeader();
+        header.setBackground(new Color(0, 123, 255));
+        header.setForeground(Color.WHITE);
+        header.setFont(new Font("Segoe UI", Font.BOLD, 18));
+        ((DefaultTableCellRenderer) header.getDefaultRenderer()).setHorizontalAlignment(JLabel.CENTER);
+
+        // Colores alternos
+        table.setDefaultRenderer(Object.class, new DefaultTableCellRenderer() {
+            @Override
+            public Component getTableCellRendererComponent(JTable table, Object value,
+                                                           boolean isSelected, boolean hasFocus,
+                                                           int row, int column) {
+                Component c = super.getTableCellRendererComponent(table, value, isSelected, hasFocus, row, column);
+                if (!isSelected) {
+                    c.setBackground(row % 2 == 0 ? Color.WHITE : new Color(240, 240, 240));
+                }
+                return c;
+            }
+        });
+
+        // Ordenar y filtrar
+        sorter = new TableRowSorter<>(tableModel);
+        table.setRowSorter(sorter);
 
         JScrollPane scrollPane = new JScrollPane(table);
         contentPanel.add(scrollPane, BorderLayout.CENTER);
 
-        // Panel para botones alineados a la derecha
+        // Panel superior con buscador
+        JPanel topPanel = new JPanel(new BorderLayout(10, 10));
+        topPanel.setBackground(Color.WHITE);
+        JTextField searchField = new JTextField();
+        searchField.setFont(baseFont);
+        searchField.setToolTipText("Buscar...");
+        searchField.addKeyListener(new KeyAdapter() {
+            @Override
+            public void keyReleased(KeyEvent e) {
+                String query = searchField.getText();
+                if (query.trim().isEmpty()) {
+                    sorter.setRowFilter(null);
+                } else {
+                    sorter.setRowFilter(RowFilter.regexFilter("(?i)" + query));
+                }
+            }
+        });
+        topPanel.add(new JLabel("🔍"), BorderLayout.WEST);
+        topPanel.add(searchField, BorderLayout.CENTER);
+        contentPanel.add(topPanel, BorderLayout.NORTH);
+
+        // Panel botones
         JPanel buttonsPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT, 15, 10));
-        buttonsPanel.setBackground(Color.WHITE); // fondo blanco limpio
+        buttonsPanel.setBackground(Color.WHITE);
 
-        // Botón "Agregar" con estilo moderno
-        JButton addBtn = new JButton("Agregar");
-        styleButton(addBtn, new Color(0, 123, 255)); // azul vibrante
-
-        // Botón "Eliminar" con estilo moderno
-        JButton deleteBtn = new JButton("Eliminar");
-        styleButton(deleteBtn, new Color(220, 53, 69)); // rojo vibrante
+        JButton addBtn = createStyledButton("➕ Agregar", new Color(0, 123, 255));
+        JButton deleteBtn = createStyledButton("🗑 Eliminar", new Color(220, 53, 69));
 
         buttonsPanel.add(addBtn);
         buttonsPanel.add(deleteBtn);
-
         contentPanel.add(buttonsPanel, BorderLayout.SOUTH);
 
-        // Eventos botones
+        // Eventos
         addBtn.addActionListener(e -> showAddContactDialog());
         deleteBtn.addActionListener(e -> deleteSelectedContact());
     }
 
-    /**
-     * Aplica estilos modernos y hover a los botones.
-     */
-    private void styleButton(JButton button, Color baseColor) {
+    private JButton createStyledButton(String text, Color baseColor) {
+        JButton button = new JButton(text);
         button.setFont(new Font("Segoe UI", Font.BOLD, 16));
         button.setForeground(Color.WHITE);
         button.setBackground(baseColor);
@@ -88,10 +119,14 @@ public class ContactView extends JFrame {
         button.setBorder(BorderFactory.createEmptyBorder(10, 20, 10, 20));
         button.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
         button.setOpaque(true);
-        button.setContentAreaFilled(true);
         button.setBorderPainted(false);
 
-        // Cambio de color al pasar mouse (hover)
+        // Bordes redondeados
+        button.setBorder(BorderFactory.createCompoundBorder(
+                BorderFactory.createLineBorder(baseColor, 1, true),
+                BorderFactory.createEmptyBorder(10, 20, 10, 20)
+        ));
+
         button.addMouseListener(new MouseAdapter() {
             @Override
             public void mouseEntered(MouseEvent e) {
@@ -103,6 +138,7 @@ public class ContactView extends JFrame {
                 button.setBackground(baseColor);
             }
         });
+        return button;
     }
 
     private void loadContacts() {
@@ -118,6 +154,7 @@ public class ContactView extends JFrame {
         dialog.setVisible(true);
         if (dialog.isSucceeded()) {
             loadContacts();
+            showToast("Contacto agregado con éxito", new Color(40, 167, 69));
         }
     }
 
@@ -132,6 +169,39 @@ public class ContactView extends JFrame {
         if (confirm == JOptionPane.YES_OPTION) {
             controller.delete(id);
             loadContacts();
+            showToast("Contacto eliminado con éxito", new Color(220, 53, 69));
         }
+    }
+
+    private void showWelcomeMessage() {
+        JOptionPane.showMessageDialog(this,
+                "👋 Bienvenido a tu Agenda MVC Swing\n\nGestiona tus contactos de manera fácil y rápida.",
+                "Bienvenida",
+                JOptionPane.INFORMATION_MESSAGE);
+    }
+
+    private void showToast(String message, Color background) {
+        JWindow toast = new JWindow();
+        toast.setBackground(new Color(0, 0, 0, 0));
+
+        JPanel panel = new JPanel();
+        panel.setBackground(background);
+        panel.setBorder(BorderFactory.createEmptyBorder(10, 20, 10, 20));
+
+        JLabel label = new JLabel(message);
+        label.setFont(new Font("Segoe UI", Font.BOLD, 14));
+        label.setForeground(Color.WHITE);
+        panel.add(label);
+
+        toast.add(panel);
+        toast.pack();
+        toast.setLocationRelativeTo(this);
+
+        new Thread(() -> {
+            toast.setVisible(true);
+            try { Thread.sleep(2000); } catch (InterruptedException ignored) {}
+            toast.setVisible(false);
+            toast.dispose();
+        }).start();
     }
 }
